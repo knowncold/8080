@@ -1269,7 +1269,7 @@ class cpu:
             elif self._memory[i] == 0xC5:
                 self.mappingTable[self._memory[i]] = self.INST_PUSH
             elif self._memory[i] == 0xC6:
-                self.mappingTable[self._memory[i]] = self.INST_toImplement  # TODO not implement
+                self.mappingTable[self._memory[i]] = self.INST_ADD
             elif self._memory[i] == 0xC7:
                 self.mappingTable[self._memory[i]] = self.INST_RST
             elif self._memory[i] == 0xC8:

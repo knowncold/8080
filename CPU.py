@@ -898,7 +898,7 @@ class cpu:
             elif self._memory[i] == 0x0C:
                 self.mappingTable[self._memory[i]] = self.INST_INR
             elif self._memory[i] == 0x0D:
-                self.mappingTable[self._memory[i]] = self.INST_DCX
+                self.mappingTable[self._memory[i]] = self.INST_DEC
             elif self._memory[i] == 0x0E:
                 self.mappingTable[self._memory[i]] = self.INST_MVI_C
             elif self._memory[i] == 0x0F:

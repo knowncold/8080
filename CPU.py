@@ -168,7 +168,7 @@ class cpu:
         self.HL = (self.H << 8) + self.L
 
     def INST_MVI_M(self):
-        self.write2Bytes(self.HL, self.FetchRomNext2Bytes())
+        self.writeByte(self.HL, self.FetchRomNext1Byte())
 
     def INST_CALL(self):
         condition = True

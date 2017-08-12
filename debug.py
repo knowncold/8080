@@ -20,7 +20,7 @@ ROMPath = 'invaders.rom'    # it should be smaller than 8192bytes
 cpu.loadROM(ROMPath)
 cpu.InitMap()
 
-beginCycles = 1500
+beginCycles = 10000
 
 textRun.clear()
 textRun.send_keys(str(beginCycles))
@@ -30,10 +30,13 @@ cpu.runCycles(beginCycles)
 pre_chrome_pc = 0
 pre_cpu_pc = 0
 
+textRun.clear()
+textRun.send_keys(str(1000))
+
 i = 1
 while True:
-    buttonRun.click()
-    cpu_pc = cpu.runCycles(1)
+    buttonRunN.click()
+    cpu_pc = cpu.runCycles(1000)
     if int(pc.text, 16) != cpu_pc:
         print "PC problem"
         print i + beginCycles
@@ -72,4 +75,5 @@ while True:
     pre_chrome_pc = pc.text
     pre_cpu_pc = cpu_pc
     i += 1
+    print i*1000 + beginCycles
 

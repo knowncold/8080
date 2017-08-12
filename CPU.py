@@ -130,7 +130,7 @@ class cpu:
     def INST_LXI_DE(self):  # D <- byte 3, E <- byte 2
         self.DE = self.FetchRomNext2Bytes()
         self.D = self.DE >> 8
-        self.C = self.DE & 0xFF
+        self.E = self.DE & 0xFF
 
     def INST_LXI_HL(self):  # H <- byte 3, L <- byte 2
         self.HL = self.FetchRomNext2Bytes()
@@ -144,8 +144,7 @@ class cpu:
         self.A = self.FetchRomNext1Byte()
 
     def INST_MVI_B(self):  # B <- byte2
-        self.B = self.FetchRomNext1Byte()
-        self.BC = (self.B << 8) + self.C
+        self.setB(self.FetchRomNext1Byte())
 
     def INST_MVI_C(self):  # C <- byte2
         self.C = self.FetchRomNext1Byte()
@@ -1386,8 +1385,8 @@ class cpu:
                 self.mappingTable[self._memory[i]] = self.INST_RST
 
     def information(self):
-        print "a:%x" % self.A
-        print "bc:%x" % self.BC
+        print " a:%x" % self.A
+        print "bc:%x b:%x c:%x" % (self.BC, self.B, self.C)
         print "de:%x" % self.DE
         print "HL:%x" % self.HL
         print "SP:%x" % self.SP

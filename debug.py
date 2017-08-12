@@ -20,7 +20,7 @@ ROMPath = 'invaders.rom'    # it should be smaller than 8192bytes
 cpu.loadROM(ROMPath)
 cpu.InitMap()
 
-beginCycles = 0
+beginCycles = 1500
 
 textRun.clear()
 textRun.send_keys(str(beginCycles))
@@ -36,11 +36,8 @@ while True:
     cpu_pc = cpu.runCycles(1)
     if int(pc.text, 16) != cpu_pc:
         print "PC problem"
-        print pc.text
-        print cpu_pc
         print i + beginCycles
-        print pre_chrome_pc
-        print pre_cpu_pc
+        cpu.information()
         break
 
     if int(bc.text, 16) != cpu.BC:

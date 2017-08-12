@@ -167,6 +167,9 @@ class cpu:
         self.L = self.FetchRomNext1Byte()
         self.HL = (self.H << 8) + self.L
 
+    def INST_MVI_M(self):
+        self.write2Bytes(self.HL, self.FetchRomNext2Bytes())
+
     def INST_CALL(self):
         condition = True
         data_16 = self.FetchRomNext2Bytes()
@@ -978,7 +981,7 @@ class cpu:
             elif self._memory[i] == 0x35:
                 self.mappingTable[self._memory[i]] = self.INST_DCX
             elif self._memory[i] == 0x36:
-                self.mappingTable[self._memory[i]] = self.INST_toImplement   # TODO not implemented
+                self.mappingTable[self._memory[i]] = self.INST_MVI_M
             elif self._memory[i] == 0x37:
                 self.mappingTable[self._memory[i]] = self.INST_STC
             elif self._memory[i] == 0x38:

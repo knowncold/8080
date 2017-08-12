@@ -6,7 +6,7 @@ class cpu:
     def __init__(self):
         self._memory = []
         self.PC = 0
-        self.SP = 0  # stack pointer
+        self.SP = 0xF000  # stack pointer
         self.A = 0
         self.B = 0
         self.C = 0
@@ -880,7 +880,7 @@ class cpu:
             elif self._memory[i] == 0x04:
                 self.mappingTable[self._memory[i]] = self.INST_INR
             elif self._memory[i] == 0x05:
-                self.mappingTable[self._memory[i]] = self.INST_DCX
+                self.mappingTable[self._memory[i]] = self.INST_DEC
             elif self._memory[i] == 0x06:
                 self.mappingTable[self._memory[i]] = self.INST_MVI_B
             elif self._memory[i] == 0x07:

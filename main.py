@@ -15,7 +15,7 @@ cpu.InitMap()
 cpu.reset()
 
 # cpu.Run()
-cpu.runCycles(1545)
+cpu.runCycles(15)
 cpu.information()
 # window = pyglet.window.Window()
 #

@@ -31,7 +31,7 @@ class cpu:
         self.disassembly_pc = 0
         self.mappingTable = [0] * 0x100
         self.inst_per_frame = 40000
-        self.half_inst_per_frame = 2000
+        self.half_inst_per_frame = 20000
 
         self.io = Input.input()
 

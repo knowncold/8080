@@ -1,8 +1,11 @@
 from selenium import webdriver
 import CPU
 
-driver = webdriver.Chrome()
+options = webdriver.ChromeOptions()
+options.add_argument('--allow-file-access-from-files')
+driver = webdriver.Chrome(chrome_options=options)
 driver.get('https://bluishcoder.co.nz/js8080')
+# driver.get('file:///home/knowncold/Projects/reference/Intel8080/index.html')
 buttonRun = driver.find_element_by_xpath('html//button[6]')
 buttonRunN = driver.find_element_by_xpath('html//button[7]')
 textRun = driver.find_element_by_id('n')
@@ -13,14 +16,15 @@ de = driver.find_element_by_id('de')
 hl = driver.find_element_by_id('hl')
 sp = driver.find_element_by_id('sp')
 pc = driver.find_element_by_id('pc')
-
+cycles = driver.find_element_by_id('cycles')
 
 cpu = CPU.cpu()
 ROMPath = 'invaders.rom'    # it should be smaller than 8192bytes
 cpu.loadROM(ROMPath)
 cpu.InitMap()
 
-beginCycles = 42300
+# beginCycles = 80000
+beginCycles = 8111000
 
 textRun.clear()
 textRun.send_keys(str(beginCycles))
@@ -78,10 +82,20 @@ while True:
         print "C problem"
         cpu.information()
         break
+    if int(af.text, 16) != cpu.flag() + (cpu.A << 8):
+        print "FLAG problem"
+        cpu.information()
+        break
+
+    if (cycles.text == '' and cpu.cycles != 0) or (cycles.text != '' and int(cycles.text) != cpu.cycles):
+        print "cycles problem"
+        print cycles.text
+        print cpu.cycles
+        cpu.information()
+        break
 
     pre_chrome_pc = pc.text
     pre_cpu_pc = cpu_pc
     i += 1
     # print i*1000 + beginCycles
     print i + beginCycles
-

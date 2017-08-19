@@ -20,7 +20,7 @@ class cpu:
         self.SIGN = False  # True minus    MST
         self.ZERO = False
         self.HALFCARRY = False
-        self.PARITY = 0  # odd or even
+        self.PARITY = False  # odd or even
         self.CARRY = False
         self.INTERRUPT = False
         self.current_inst = 0  # current instruction
@@ -28,10 +28,14 @@ class cpu:
         self.interrupt_alternate = False
         self.count_inst = 0
 
+        self.count = 0
+        self.cycles = 0
+        self.prevHL = 0
+
         self.disassembly_pc = 0
         self.mappingTable = [0] * 0x100
-        self.inst_per_frame = 40000
-        self.half_inst_per_frame = 20000
+        self.inst_per_frame = 4000
+        self.half_inst_per_frame = 2000
 
         self.io = Input.input()
 
@@ -59,7 +63,7 @@ class cpu:
         self.INTERRUPT = False
 
     def Run(self):
-        for i in range(self.inst_per_frame):
+        for i in range(16667):
             self.execINST()
 
     def runCycles(self, cycles):
@@ -68,6 +72,21 @@ class cpu:
         # print "PC: " + "%x"%self.PC
         # print "oprand: " + "%x"%(self.current_inst)
         return self.PC
+    def flag(self):
+        value = 0
+        if self.CARRY:
+            value += 0x01
+        if self.PARITY:
+            value += 0x04
+        if self.ZERO:
+            value += 0x40
+        if self.SIGN:
+            value += 0x80
+        if self.INTERRUPT:
+            value += 0x20
+        if self.HALFCARRY:
+            value += 0x10
+        return value
 
     def execINST(self):
         self.disassembly_pc = self.PC
@@ -79,32 +98,60 @@ class cpu:
         else:
             print "Oprand Error: " + str(self.current_inst)
         self.count_inst += 1
+        self.count += 1
 
-        if self.count_inst >= self.half_inst_per_frame:
+        # if self.count_inst >= self.half_inst_per_frame:
+        #     # print "INTERRUPUT"
+        #     if self.INTERRUPT:
+        #         if self.interrupt_alternate == False:
+        #             self.callInterrupt(0x08)
+        #         else:
+        #             self.callInterrupt(0x10)
+        #     self.interrupt_alternate = not self.interrupt_alternate
+        #     self.count_inst = 0
+        if self.cycles >= 16667:
+            self.cycles -= 16667
             if self.INTERRUPT:
-                if self.interrupt_alternate == False:
+                if self.interrupt_alternate == True:
                     self.callInterrupt(0x08)
                 else:
                     self.callInterrupt(0x10)
-            self.interrupt_alternate = not self.interrupt_alternate
-            self.count_inst = 0
+                self.interrupt_alternate = not self.interrupt_alternate
+        if self.A>0xFF or self.B>0xFF or self.C>0xFF or self.D>0xFF or self.E>0xFF or self.H>0xFF or self.L>0xFF:
+            self.information()
+            print "INST"
+
+            exit(1)
+
+        # if self.HL == 65286:
+        #     print "HL changed", self.count, self.current_inst
+        #     exit(1)
+
+        # if self._memory[8310] != self.prevHL:
+            # print "fuck", self.count, self.current_inst
+            # exit(1)
+        # self.prevHL = self._memory[8310]
 
     def callInterrupt(self, address):
-        self.INTERRUPT = False
+        # self.INTERRUPT = False
         self.stackPush(self.PC)
         self.PC = address
 
-    def INST_NOP(self):  # nop
-        pass
+    def INST_NOP(self):
+        """do nothing"""
+        self.cycles += 4
 
     def INST_toImplement(self):
         print str(self.current_inst) + " is not implement."
+        exit(1)
 
     def INST_JMP(self):  # JMP group     size 3
         condition = True
         data_16 = self.FetchRomNext2Bytes()  # fetch the next 2 data
         if 0xC3 == self.current_inst:  # JMP
-            pass
+            self.PC = data_16
+            self.cycles += 10
+            return
         elif self.current_inst == 0xC2:  # JNZ
             condition = not self.ZERO  # if not z
         elif self.current_inst == 0xCA:  # JZ
@@ -118,63 +165,69 @@ class cpu:
         elif self.current_inst == 0xFA:  # JM
             condition = self.SIGN  # if not P(M)
 
+        self.cycles += 10
+
         if condition:
             self.PC = data_16
+            self.cycles += 5
 
     def INST_LXI_BC(self):  # B <- byte 3, C <- byte 2
-        self.BC = self.FetchRomNext2Bytes()
-        # data_16 &= 0xFFFF     # is this necessary
-        self.B = self.BC >> 8
-        self.C = self.BC & 0xFF
+        self.setBC(self.FetchRomNext2Bytes())
+        self.cycles += 10
 
     def INST_LXI_DE(self):  # D <- byte 3, E <- byte 2
-        self.DE = self.FetchRomNext2Bytes()
-        self.D = self.DE >> 8
-        self.E = self.DE & 0xFF
+        self.setDE(self.FetchRomNext2Bytes())
+        self.cycles += 10
 
     def INST_LXI_HL(self):  # H <- byte 3, L <- byte 2
-        self.HL = self.FetchRomNext2Bytes()
-        self.H = self.HL >> 8
-        self.L = self.HL & 0xFF
+        self.setHL(self.FetchRomNext2Bytes())
+        self.cycles += 10
 
     def INST_LXI_SP(self):  # SP.hi <- byte 3, SP.lo <- byte 2
         self.SP = self.FetchRomNext2Bytes()
+        self.cycles += 10
 
     def INST_MVI_A(self):  # A <- byte 2
         self.A = self.FetchRomNext1Byte()
+        self.cycles += 7
 
     def INST_MVI_B(self):  # B <- byte2
         self.setB(self.FetchRomNext1Byte())
+        self.cycles += 7
 
     def INST_MVI_C(self):  # C <- byte2
-        self.C = self.FetchRomNext1Byte()
-        self.BC = (self.B << 8) + self.C
+        self.setC(self.FetchRomNext1Byte())
+        self.cycles += 7
 
     def INST_MVI_D(self):  # D <- byte2
-        self.D = self.FetchRomNext1Byte()
-        self.DE = (self.D << 8) + self.E
+        self.setD(self.FetchRomNext1Byte())
+        self.cycles += 7
 
     def INST_MVI_E(self):  # E <- byte2
-        self.E = self.FetchRomNext1Byte()
-        self.DE = (self.D << 8) + self.E
+        self.setE(self.FetchRomNext1Byte())
+        self.cycles += 7
 
     def INST_MVI_H(self):  # H <- byte2
-        self.H = self.FetchRomNext1Byte()
-        self.HL = (self.H << 8) + self.L
+        self.setH(self.FetchRomNext1Byte())
+        self.cycles += 7
 
     def INST_MVI_L(self):  # L <- byte2
-        self.L = self.FetchRomNext1Byte()
-        self.HL = (self.H << 8) + self.L
+        self.setL(self.FetchRomNext1Byte())
+        self.cycles += 7
 
     def INST_MVI_M(self):
         self.writeByte(self.HL, self.FetchRomNext1Byte())
+        self.cycles += 10
 
     def INST_CALL(self):
         condition = True
         data_16 = self.FetchRomNext2Bytes()
 
         if self.current_inst == 0xCD:  # CALL adr	3		(SP-1)<-PC.hi;(SP-2)<-PC.lo;SP<-SP+2;PC=adr
-            pass
+            self.stackPush(self.PC)
+            self.PC = data_16
+            self.cycles += 17
+            return
         elif self.current_inst == 0xC4:  # if NZ, CALL adr
             condition = not self.ZERO
         elif self.current_inst == 0xCC:
@@ -184,15 +237,20 @@ class cpu:
         elif self.current_inst == 0xDC:
             condition = self.CARRY
 
+        self.cycles += 11
+
         if condition:
             self.stackPush(self.PC)
             self.PC = data_16
+            self.cycles += 7
 
     def INST_RET(self):
         condition = True
 
         if self.current_inst == 0xC9:
-            pass
+            self.PC = self.stackPop()
+            self.cycles += 10
+            return
         elif self.current_inst == 0xC0:
             condition = not self.ZERO
         elif self.current_inst == 0xC8:
@@ -202,18 +260,25 @@ class cpu:
         elif self.current_inst == 0xD8:
             condition = self.CARRY
 
+        self.cycles += 5
         if condition:
             self.PC = self.stackPop()
+            self.cycles += 6
 
     def INST_LDA(self):
         if self.current_inst == 0x0A:
             source = self.BC
+            self.cycles += 7
         elif self.current_inst == 0x1A:
             source = self.DE
+            self.cycles += 7
         elif self.current_inst == 0x3A:
             source = self.FetchRomNext2Bytes()
+            self.cycles += 13
         else:
             source = 0
+            print "LDA problem"
+            exit(1)
 
         self.A = self.readByte(source)
 
@@ -225,11 +290,11 @@ class cpu:
         elif self.current_inst == 0xE5:
             value = self.HL
         elif self.current_inst == 0xF5:
-            value = self.A << 8
+            value = (self.A << 8) + 0x02
             value += 0x80 if self.SIGN else 0
             value += 0x40 if self.ZERO else 0
-            value += 0x20 if self.INTERRUPT else 0
             value += 0x10 if self.HALFCARRY else 0
+            value += 0x04 if self.PARITY else 0
             value += 0x01 if self.CARRY else 0
         else:
             value = 0
@@ -237,30 +302,29 @@ class cpu:
             exit(1)
 
         self.stackPush(value)
+        self.cycles += 11
 
     def INST_POP_BC(self):
-        self.BC = self.stackPop()
-        self.B = self.BC >> 8
-        self.C = self.BC & 0xFF
+        self.setBC(self.stackPop())
+        self.cycles += 10
 
     def INST_POP_DE(self):
-        self.DE = self.stackPop()
-        self.D = self.DE >> 8
-        self.E = self.DE & 0xFF
+        self.setDE(self.stackPop())
+        self.cycles += 10
 
     def INST_POP_HL(self):
-        self.HL = self.stackPop()
-        self.H = self.HL >> 8
-        self.L = self.HL & 0xFF
+        self.setHL(self.stackPop())
+        self.cycles += 10
 
     def INST_POP_FLAGS(self):
         value = self.stackPop()
         self.A = value >> 8
         self.SIGN = True if (value & 0x80) > 0 else False
         self.ZERO = True if (value & 0x40) > 0 else False
-        self.INTERRUPT = True if (value & 0x20) > 0 else False
         self.HALFCARRY = True if (value & 0x10) > 0 else False
+        self.PARITY = True if (value & 0x04) > 0 else False
         self.CARRY = True if (value & 0x01) > 0 else False
+        self.cycles += 10
 
     def INST_MOVHL(self):
         if self.current_inst == 0x77:
@@ -277,6 +341,8 @@ class cpu:
             self.writeByte(self.HL, self.H)
         elif self.current_inst == 0x75:
             self.writeByte(self.HL, self.L)
+
+        self.cycles += 7
 
     def INST_MOV(self):
         if self.current_inst == 0x7F:
@@ -295,6 +361,7 @@ class cpu:
             self.A = self.L
         elif self.current_inst == 0x7E:
             self.A = self.readByte(self.HL)
+            self.cycles += 2
 
         elif self.current_inst == 0x47:
             self.setB(self.A)
@@ -312,6 +379,7 @@ class cpu:
             self.setB(self.L)
         elif self.current_inst == 0x46:
             self.setB(self.readByte(self.HL))
+            self.cycles += 2
 
         elif self.current_inst == 0x4F:
             self.setC(self.A)
@@ -328,7 +396,10 @@ class cpu:
         elif self.current_inst == 0x4D:
             self.setC(self.L)
         elif self.current_inst == 0x4E:
+            # print "HL:", self.HL
+            # print "4E:", self.HL
             self.setC(self.readByte(self.HL))
+            self.cycles += 2
 
         elif self.current_inst == 0x57:
             self.setD(self.A)
@@ -346,6 +417,7 @@ class cpu:
             self.setD(self.L)
         elif self.current_inst == 0x56:
             self.setD(self.readByte(self.HL))
+            self.cycles  += 2
 
         elif self.current_inst == 0x5F:
             self.setE(self.A)
@@ -363,6 +435,7 @@ class cpu:
             self.setE(self.L)
         elif self.current_inst == 0x5E:
             self.setE(self.readByte(self.HL))
+            self.cycles += 2
 
         elif self.current_inst == 0x67:
             self.setH(self.A)
@@ -380,6 +453,7 @@ class cpu:
             self.setH(self.L)
         elif self.current_inst == 0x66:
             self.setH(self.readByte(self.HL))
+            self.cycles += 2
 
         elif self.current_inst == 0x6F:
             self.setL(self.A)
@@ -397,74 +471,120 @@ class cpu:
             self.L = self.L
         elif self.current_inst == 0x6E:
             self.setL(self.readByte(self.HL))
+            self.cycles += 2
+        else:
+            print "NO matching rules"
+            exit(1)
+
+        self.cycles += 5
 
     def INST_INX(self):
+        """"""
         if self.current_inst == 0x03:
             self.setBC(self.BC + 1)
+            self.cycles += 6
         elif self.current_inst == 0x13:
             self.setDE(self.DE + 1)
+            self.cycles += 6
         elif self.current_inst == 0x23:
             self.setHL(self.HL+1)
+            self.cycles += 6
         elif self.current_inst == 0x33:
-            self.SP += 1
+            self.SP = (self.SP + 1) & 0xFF
+            self.cycles += 6
 
     def INST_DAD_BC(self):
+        """"""
         self.addHL(self.BC)
+        self.cycles += 11
 
     def INST_DAD_DE(self):
+        """"""
         self.addHL(self.DE)
+        self.cycles += 11
 
     def INST_DAD_HL(self):
+        """"""
         self.addHL(self.HL)
+        self.cycles += 11
 
     def INST_DAD_SP(self):
+        """"""
         self.addHL(self.SP)
+        self.cycles += 11
 
     def INST_DCX(self):
+        """"""
         if self.current_inst == 0x0B:
             self.setBC(self.BC - 1)
+            self.cycles += 6
         elif self.current_inst == 0x1B:
             self.setDE(self.DE - 1)
+            self.cycles += 6
         elif self.current_inst == 0x2B:
             self.setHL(self.HL - 1)
+            self.cycles += 6
         elif self.current_inst == 0x3B:
-            self.SP = self.SP - 1
+            self.SP = (self.SP - 1) & 0xFF
+            self.cycles += 6
+        else:
+            print "DCX ERROR"
+            exit(1)
 
     def INST_DEC(self):
         if self.current_inst == 0x3D:
             self.A = self.Dec(self.A)
+            self.cycles += 5
         elif self.current_inst == 0x05:
             self.setB(self.Dec(self.B))
+            self.cycles += 5
         elif self.current_inst == 0x0D:
             self.setC(self.Dec(self.C))
+            self.cycles += 5
         elif self.current_inst == 0x15:
             self.setD(self.Dec(self.D))
+            self.cycles += 5
         elif self.current_inst == 0x1D:
             self.setE(self.Dec(self.E))
+            self.cycles += 5
         elif self.current_inst == 0x25:
             self.setH(self.Dec(self.H))
+            self.cycles += 5
         elif self.current_inst == 0x2D:
             self.setL(self.Dec(self.L))
+            self.cycles += 5
         elif self.current_inst == 0x35:
             self.writeByte(self.HL, self.Dec(self.readByte(self.HL)))
+            self.cycles += 10
+        else:
+            print "DEC ERROR"
+            exit(1)
 
     def INST_INR(self):
         if self.current_inst == 0x3C:
             self.A = self.Inc(self.A)
+            self.cycles += 5
         elif self.current_inst == 0x04:
             self.setB(self.Inc(self.B))
+            self.cycles += 5
         elif self.current_inst == 0x0C:
             self.setC(self.Inc(self.C))
+            self.cycles += 5
         elif self.current_inst == 0x14:
             self.setD(self.Inc(self.D))
+            self.cycles += 5
         elif self.current_inst == 0x1C:
             self.setE(self.Inc(self.E))
+            self.cycles += 5
         elif self.current_inst == 0x24:
             self.setH(self.Inc(self.H))
+            self.cycles += 5
         elif self.current_inst == 0x2C:
             self.setL(self.Inc(self.L))
+            self.cycles += 5
         elif self.current_inst == 0x34:
             self.writeByte(self.HL, self.Inc(self.readByte(self.HL)))
+            self.cycles += 10
 
     def INST_AND(self):
         if self.current_inst == 0xA7:
@@ -483,8 +603,12 @@ class cpu:
             self.And(self.L)
         elif self.current_inst == 0xA6:
             self.And(self.readByte(self.HL))
+            self.cycles += 3
         elif self.current_inst == 0xE6:
             self.And(self.FetchRomNext1Byte())
+            self.cycles += 3
+
+        self.cycles += 4
 
     def INST_XOR(self):
         if self.current_inst == 0xAF:
@@ -503,8 +627,12 @@ class cpu:
             self.Xor(self.L)
         elif self.current_inst == 0xAE:
             self.Xor(self.readByte(self.HL))
+            self.cycles += 3
         elif self.current_inst == 0xEE:
             self.Xor(self.FetchRomNext1Byte())
+            self.cycles += 3
+
+        self.cycles += 4
 
     def INST_OR(self):
         if self.current_inst == 0xB7:
@@ -523,8 +651,12 @@ class cpu:
             self.Or(self.L)
         elif self.current_inst == 0xB6:
             self.Or(self.readByte(self.HL))
+            self.cycles += 3
         elif self.current_inst == 0xF6:
             self.Or(self.FetchRomNext1Byte())
+            self.cycles += 3
+
+        self.cycles += 4
 
     def INST_ADD(self):
         if self.current_inst == 0x87:
@@ -543,8 +675,12 @@ class cpu:
             self.Add(self.L)
         elif self.current_inst == 0x86:
             self.Add(self.readByte(self.HL))
+            self.cycles += 3
         elif self.current_inst == 0xC6:
             self.Add(self.FetchRomNext1Byte())
+            self.cycles += 3
+
+        self.cycles += 4
 
     def INST_ADC(self):
         carry = 1 if self.CARRY else 0
@@ -564,8 +700,12 @@ class cpu:
             self.Add(self.L, carry)
         elif self.current_inst == 0x8E:
             self.Add(self.readByte(self.HL), carry)
+            self.cycles += 3
         elif self.current_inst == 0xCE:
             self.Add(self.FetchRomNext1Byte(), carry)
+            self.cycles += 3
+
+        self.cycles += 4
 
     def INST_SUB(self):
         if self.current_inst == 0x97:
@@ -584,13 +724,18 @@ class cpu:
             self.Sub(self.L)
         elif self.current_inst == 0x96:
             self.Sub(self.readByte(self.HL))
+            self.cycles += 3
         elif self.current_inst == 0xD6:
             self.Sub(self.FetchRomNext1Byte())
+            self.cycles += 3
+
+        self.cycles += 4
 
     def INST_SBBI(self):
         data = self.FetchRomNext1Byte()
         carry = 1 if self.CARRY else 0
-        self.Sub(data, carry)
+        self.Sub(data, carry=carry)
+        self.cycles += 7
 
     def INST_CMP(self):
         if self.current_inst == 0xBF:
@@ -609,16 +754,23 @@ class cpu:
             value = self.L
         elif self.current_inst == 0xBE:
             value = self.readByte(self.HL)
+            self.cycles += 3
         elif self.current_inst == 0xFE:
             value = self.FetchRomNext1Byte()
+            self.cycles += 3
         else:
-            value = 0
+            print "CMP ERROR"
+            exit(1)
         self.CmpSub(value)
 
+        self.cycles += 4
+
     def INST_XCHG(self):
+        """"""
         temp = self.HL
         self.setHL(self.DE)
         self.setDE(temp)
+        self.cycles += 4
 
     def INST_XTHL(self):
         temp = self.H
@@ -629,16 +781,21 @@ class cpu:
         self.setL(self.readByte(self.SP))
         self.writeByte(self.SP, temp)
 
+        self.cycles += 4
+
     def INST_OUTP(self):    # TODO IO
         port = self.FetchRomNext1Byte()
         self.io.OutPutPort(port, self.A)
+        self.cycles += 10
 
-    def INST_INP(self):     # TODO IO
+    def INST_INP(self):
         port = self.FetchRomNext1Byte()
         self.A = self.io.InPutPort(port)
+        self.cycles += 10
 
     def INST_PCHL(self):
         self.PC = self.HL
+        self.cycles += 4
 
     def INST_RST(self):
         address = 0
@@ -662,72 +819,102 @@ class cpu:
         self.stackPush(self.PC)
         self.PC = address
 
+        self.cycles += 11
+
     def INST_RLC(self):
-        self.CARRY = self.A >> 7
-        self.A = (self.A << 1) | (self.A >> 7)
+        """"""
+        self.CARRY = True if (self.A >> 7) == 1 else False
+        self.A = ((self.A << 1) & 0xFF) + (self.A >> 7)
+        self.cycles += 4
 
     def INST_RAL(self):
+        """"""
         temp = self.A
-        self.A = self.A << 1
-        self.A |= 1 if self.CARRY else 0
-        self.CARRY = temp & 0x80
+        self.A = (self.A << 1) & 0xFF
+        self.A += 1 if self.CARRY else 0
+        self.CARRY = True if (temp & 0x80) > 0 else False
+        self.cycles += 4
 
     def INST_RRC(self):
-        self.CARRY = self.A >> 7
-        self.A = (self.A >> 1) | (self.A << 7)
+        """"""
+        self.CARRY = True if (self.A & 0x01) == 1 else False
+        self.A = ((self.A >> 1) & 0xFF) + ((self.A << 7) & 0xFF)
+        self.cycles += 4
 
-    def INST_RAR(self):     # TODO manual wrong???????????????????????
-        temp = self.A & 0xFF
-        self.A = self.A >> 1 | (self.A >> 7 << 7)
-        self.CARRY = temp << 7 >> 7
+    def INST_RAR(self):
+        """"""
+        temp = self.A
+        self.A = (self.A >> 1)
+        self.A += 0x80 if self.CARRY else 0
+        self.CARRY = True if (temp & 0x01) > 0 else False
+        self.cycles += 4
 
     def INST_RIM(self):     # TODO nothing?
+        print "Unimplemtnyed"
         pass
 
     def INST_STA(self):
         if self.current_inst == 0x02:
             self.writeByte(self.BC, self.A)
+            self.cycles += 7
         elif self.current_inst == 0x12:
             self.writeByte(self.DE, self.A)
-        elif self.current_inst == 0x32:
+            self.cycles += 7
+        elif self.current_inst == 0x32:     # TODO more INST than manual
             self.writeByte(self.FetchRomNext2Bytes(), self.A)
+            self.cycles += 13
+        else:
+            print "no matching rules"
+            exit(1)
 
     def INST_DI(self):
         self.INTERRUPT = False
+        self.cycles += 4
 
     def INST_EI(self):
         self.INTERRUPT = True
+        self.cycles += 4
 
     def INST_STC(self):
-        self.CARRY = 1
+        """C<-1"""
+        self.CARRY = True
+        self.cycles += 4
 
     def INST_CMC(self):
+        """C<-!C"""
         self.CARRY = not self.CARRY
+        self.cycles += 4
 
     def INST_LHLD(self):
-        self.setHL(self.read2Bytes(self.FetchRomNext2Bytes()))
+        a = self.FetchRomNext2Bytes()
+        # print self.read2Bytes(a)
+        self.setHL(self.read2Bytes(a))
+        # print "now:", self.HL
+        self.cycles += 16
 
     def INST_SHLD(self):
         self.write2Bytes(self.FetchRomNext2Bytes(), self.HL)
+        self.cycles += 16
 
-    def INST_DAA(self):     # TODO no manual
+    def INST_DAA(self):
+        """BCD"""
         if (self.A & 0x0F) > 9 or self.HALFCARRY:
             self.A += 0x06
             self.HALFCARRY = True
-        else:
-            self.HALFCARRY = False
 
         if (self.A > 0x9F) or self.CARRY:
             self.A += 0x60
             self.CARRY = True
-        else:
-            self.CARRY = False
 
         self.ZERO = True if self.A == 0 else False
         self.SIGN = True if (self.A & 0x80) > 0 else False
+        self.PARITY = True if self.A % 2 == 0 else False
+        self.cycles += 4
 
     def INST_CMA(self):
-        self.A = self.A ^ 0xFF
+        """A<-~A"""
+        self.A = (~self.A) & 0xFF
+        self.cycles += 4
 
     @staticmethod
     def INST_HLT():
@@ -735,108 +922,139 @@ class cpu:
         exit(0)
 
     def setB(self, data):
-        self.B = data
+        self.B = data & 0xFF
         self.BC = (self.B << 8) + self.C
 
     def setC(self, data):
-        self.C = data
+        self.C = data & 0xFF
         self.BC = (self.B << 8) + self.C
 
     def setD(self, data):
-        self.D = data
+        self.D = data & 0xFF
         self.DE = (self.D << 8) + self.E
 
     def setE(self, data):
-        self.E = data
+        self.E = data & 0xFF
         self.DE = (self.D << 8) + self.E
 
     def setH(self, data):
-        self.H = data
+        self.H = data & 0xFF
         self.HL = (self.H << 8) + self.L
 
     def setL(self, data):
-        self.L = data
+        self.L = data & 0xFF
         self.HL = (self.H << 8) + self.L
 
     def setBC(self, data):
-        self.BC = data
+        self.BC = data & 0xFFFF
         self.B = self.BC >> 8
         self.C = self.BC & 0xFF
 
     def setDE(self, data):
-        self.DE = data
+        self.DE = data & 0xFFFF
         self.D = self.DE >> 8
         self.E = self.DE & 0xFF
 
     def setHL(self, data):
-        self.HL = data & 0xFFFF     # & used for addHL()
+        self.HL = data & 0xFFFF
         self.H = self.HL >> 8
         self.L = self.HL & 0xFF
 
     def addHL(self, data):
         value = self.HL + data
         self.setHL(value)
-        self.CARRY = True if value > 0xFFFF else False
+        # self.CARRY = True if value > 0xFFFF else False
+        if value > 0xFFFF:
+            self.CARRY = True
 
     def Inc(self, data):
+        """i++"""
         value = (data + 1) & 0xFF
         self.ZERO = True if value == 0 else False
-        self.SIGN = True if value & 128 & 0xFF else False   # TODO may error
-        self.HALFCARRY = True if value & 0xF == 0 else False    # TODO may error
+        self.SIGN = True if (value & 0x80) > 0 else False   # TODO may error
+        self.HALFCARRY = True if data == 0x0F else False    # TODO may error
+        self.PARITY = True if value % 2 == 0 else False
         return value
 
     def Dec(self, data):
+        """i--"""
         value = (data - 1) & 0xFF
-        self.HALFCARRY = True if (value & 0xF) == 0xF else False    # TODO may error
-        self.SIGN = True if value & 128 > 0 else False
+        self.HALFCARRY = True if (data & 0x0F) == 0 else False    # TODO may error
+        self.SIGN = True if (value & 0x80) > 0 else False
         self.ZERO = True if value == 0 else False
+        self.PARITY = True if value % 2 == 0 else False
         return value
 
     def And(self, value):
-        self.A = (self.A & value)
+        """"""
+        temp = self.A
+        self.A = self.A & value
         self.CARRY = False
-        self.HALFCARRY = False
         self.ZERO = True if self.A == 0 else False
         self.SIGN = True if self.A & 0x80 > 0 else False
+        self.PARITY = True if self.A % 2 == 0 else False
+        # self.HALFCARRY = True if (self.A%10) != ((temp&0x0F) & (value&0x0F)) else False
+        self.HALFCARRY = False if ((temp & 8)>>3) | ((value & 8)>>3) > 0 else True
+
 
     def Xor(self, value):
+        """"""
+        temp = self.A
         self.A = self.A ^ value
         self.CARRY = False
-        self.HALFCARRY = False
         self.ZERO = True if self.A == 0 else False
         self.SIGN = True if self.A & 0x80 > 0 else False
+        self.PARITY = True if self.A % 2 == 0 else False
+        # self.HALFCARRY = True if (self.A%10) != ((temp&0x0F) ^ (value&0x0F)) else False
+        self.HALFCARRY = False
 
     def Or(self, value):
+        """"""
         self.A = self.A | value
         self.CARRY = False
-        self.HALFCARRY = False
+        self.HALFCARRY = False  # js8080
         self.ZERO = True if self.A == 0 else False
         self.SIGN = True if self.A & 0x80 > 0 else False
+        self.PARITY = True if self.A % 2 == 0 else False
 
     def Add(self, in_value, carry=0):
+        """"""
         value = self.A + in_value + carry
-        self.HALFCARRY = (self.A ^ in_value ^ (value & 0xFF)) & 0x10  # TODO
+        # self.HALFCARRY = True if (self.A & 0x0F) + (in_value & 0x0F) + carry > 0x0F else False
+        self.HALFCARRY = True if (((self.A ^ value) ^ in_value) & 0x10) > 0 else False
         self.A = value & 0xFF
-        self.CARRY = True if value > 255 else False
+        self.CARRY = True if value > 255 or value < 0 else False
         self.SIGN = True if self.A & 0x80 > 0 else False
         self.ZERO = True if self.A == 0 else False
+        self.PARITY = True if self.A % 2 == 0 else False
 
     def Sub(self, in_value, carry=0):
-        value = self.A - in_value - carry
-        self.HALFCARRY = (self.A ^ in_value ^ (value & 0xFF)) & 0x10  # TODO
-        self.CARRY = True if ((value & 0xFF) >= self.A and (in_value | carry) > 0) else False
+        """"""
+        # in_value = ~(in_value + carry) & 0xFF # TODO may get error
+        # value = self.A + in_value + self.CARRY
+        value = self.A - in_value + carry
+        x = value & 0xFF
+        # self.HALFCARRY = True if (self.A & 0x0F) + (in_value & 0x0F) + carry > 0x0F else False
+        self.HALFCARRY = True if ((self.A ^ value) ^ in_value) & 0x10 > 0 else False
+        self.CARRY = True if value > 255 or value < 0 else  False
         self.A = value & 0xFF
-        self.SIGN = True if self.A & 0x80 > 0 else False
-        self.ZERO = True if self.A == 0 else False
+        self.SIGN = True if x & 0x80 > 0 else False
+        self.ZERO = True if x == 0 else False
+        self.PARITY = True if x % 2== 0 else False
 
     def CmpSub(self, in_value):        # TODO
-        value = (self.A - in_value) & 0xFF
-        self.CARRY = True if ((value >= self.A) and (in_value > 0)) else False
-        self.HALFCARRY = (self.A ^ in_value ^ value) & 0x10
-        self.ZERO = True if value == 0 else False
-        self.SIGN = value & 128
+        value = self.A - in_value
+        self.CARRY = True if value >= 255 or value < 0 else False
+        self.HALFCARRY = True if ((self.A ^ value) ^ in_value) & 0x10 > 0 else False
+        self.ZERO = True if value & 0xFF== 0 else False
+        self.SIGN = True if (value & 0x80) > 0 else False
+        self.PARITY = True if value%2==0 else False
 
     def stackPush(self, data):
+        if data > 0xFFFF:
+            print "PUSH ERROR DATA:", data
+            print "Count:", self.count
+            exit(1)
         self.SP -= 2
         self.write2Bytes(self.SP, data)
 
@@ -914,7 +1132,7 @@ class cpu:
             elif self._memory[i] == 0x14:
                 self.mappingTable[self._memory[i]] = self.INST_INR
             elif self._memory[i] == 0x15:
-                self.mappingTable[self._memory[i]] = self.INST_DCX
+                self.mappingTable[self._memory[i]] = self.INST_DEC
             elif self._memory[i] == 0x16:
                 self.mappingTable[self._memory[i]] = self.INST_MVI_D
             elif self._memory[i] == 0x17:
@@ -930,7 +1148,7 @@ class cpu:
             elif self._memory[i] == 0x1C:
                 self.mappingTable[self._memory[i]] = self.INST_INR
             elif self._memory[i] == 0x1D:
-                self.mappingTable[self._memory[i]] = self.INST_DCX
+                self.mappingTable[self._memory[i]] = self.INST_DEC
             elif self._memory[i] == 0x1E:
                 self.mappingTable[self._memory[i]] = self.INST_MVI_E
             elif self._memory[i] == 0x1F:
@@ -946,7 +1164,7 @@ class cpu:
             elif self._memory[i] == 0x24:
                 self.mappingTable[self._memory[i]] = self.INST_INR
             elif self._memory[i] == 0x25:
-                self.mappingTable[self._memory[i]] = self.INST_DCX
+                self.mappingTable[self._memory[i]] = self.INST_DEC
             elif self._memory[i] == 0x26:
                 self.mappingTable[self._memory[i]] = self.INST_MVI_H
             elif self._memory[i] == 0x27:
@@ -962,7 +1180,7 @@ class cpu:
             elif self._memory[i] == 0x2C:
                 self.mappingTable[self._memory[i]] = self.INST_INR
             elif self._memory[i] == 0x2D:
-                self.mappingTable[self._memory[i]] = self.INST_DCX
+                self.mappingTable[self._memory[i]] = self.INST_DEC
             elif self._memory[i] == 0x2E:
                 self.mappingTable[self._memory[i]] = self.INST_MVI_L
             elif self._memory[i] == 0x2F:
@@ -978,7 +1196,7 @@ class cpu:
             elif self._memory[i] == 0x34:
                 self.mappingTable[self._memory[i]] = self.INST_INR
             elif self._memory[i] == 0x35:
-                self.mappingTable[self._memory[i]] = self.INST_DCX
+                self.mappingTable[self._memory[i]] = self.INST_DEC
             elif self._memory[i] == 0x36:
                 self.mappingTable[self._memory[i]] = self.INST_MVI_M
             elif self._memory[i] == 0x37:
@@ -994,7 +1212,7 @@ class cpu:
             elif self._memory[i] == 0x3C:
                 self.mappingTable[self._memory[i]] = self.INST_INR
             elif self._memory[i] == 0x3D:
-                self.mappingTable[self._memory[i]] = self.INST_DCX
+                self.mappingTable[self._memory[i]] = self.INST_DEC
             elif self._memory[i] == 0x3E:
                 self.mappingTable[self._memory[i]] = self.INST_MVI_A
             elif self._memory[i] == 0x3F:
@@ -1320,11 +1538,11 @@ class cpu:
             elif self._memory[i] == 0xDF:
                 self.mappingTable[self._memory[i]] = self.INST_RST
             elif self._memory[i] == 0xE0:
-                self.mappingTable[self._memory[i]] = self.INST_toImplement  # TODO implement
+                self.mappingTable[self._memory[i]] = self.INST_toImplement  # TODO implement    cycles += 5 11
             elif self._memory[i] == 0xE1:
                 self.mappingTable[self._memory[i]] = self.INST_POP_HL
             elif self._memory[i] == 0xE2:
-                self.mappingTable[self._memory[i]] = self.INST_toImplement  # TODO implement
+                self.mappingTable[self._memory[i]] = self.INST_toImplement  # TODO implement    cycles += 10 15
             elif self._memory[i] == 0xE3:
                 self.mappingTable[self._memory[i]] = self.INST_XTHL
             elif self._memory[i] == 0xE4:
@@ -1336,15 +1554,15 @@ class cpu:
             elif self._memory[i] == 0xE7:
                 self.mappingTable[self._memory[i]] = self.INST_RST
             elif self._memory[i] == 0xE8:
-                self.mappingTable[self._memory[i]] = self.INST_toImplement  # TODO implement
+                self.mappingTable[self._memory[i]] = self.INST_toImplement  # TODO implement    cycles += 5 11
             elif self._memory[i] == 0xE9:
                 self.mappingTable[self._memory[i]] = self.INST_PCHL
             elif self._memory[i] == 0xEA:
-                self.mappingTable[self._memory[i]] = self.INST_toImplement  # TODO implement
+                self.mappingTable[self._memory[i]] = self.INST_toImplement  # TODO implement    cycles += 10 15
             elif self._memory[i] == 0xEB:
                 self.mappingTable[self._memory[i]] = self.INST_XCHG
             elif self._memory[i] == 0xEC:
-                self.mappingTable[self._memory[i]] = self.INST_toImplement
+                self.mappingTable[self._memory[i]] = self.INST_toImplement  # cycles += 11 18
             elif self._memory[i] == 0xED:
                 self.mappingTable[self._memory[i]] = self.INST_NOP  # TODO nothing
             elif self._memory[i] == 0xEE:
@@ -1352,7 +1570,7 @@ class cpu:
             elif self._memory[i] == 0xEF:
                 self.mappingTable[self._memory[i]] = self.INST_RST
             elif self._memory[i] == 0xF0:
-                self.mappingTable[self._memory[i]] = self.INST_toImplement
+                self.mappingTable[self._memory[i]] = self.INST_toImplement  # cycles += 5 11
             elif self._memory[i] == 0xF1:
                 self.mappingTable[self._memory[i]] = self.INST_POP_FLAGS
             elif self._memory[i] == 0xF2:
@@ -1360,7 +1578,7 @@ class cpu:
             elif self._memory[i] == 0xF3:
                 self.mappingTable[self._memory[i]] = self.INST_DI
             elif self._memory[i] == 0xF4:
-                self.mappingTable[self._memory[i]] = self.INST_toImplement
+                self.mappingTable[self._memory[i]] = self.INST_toImplement  # cycles += 11 18
             elif self._memory[i] == 0xF5:
                 self.mappingTable[self._memory[i]] = self.INST_PUSH
             elif self._memory[i] == 0xF6:
@@ -1368,15 +1586,15 @@ class cpu:
             elif self._memory[i] == 0xF7:
                 self.mappingTable[self._memory[i]] = self.INST_RST
             elif self._memory[i] == 0xF8:
-                self.mappingTable[self._memory[i]] = self.INST_toImplement
+                self.mappingTable[self._memory[i]] = self.INST_toImplement  # cycles += 5 11
             elif self._memory[i] == 0xF9:
-                self.mappingTable[self._memory[i]] = self.INST_toImplement
+                self.mappingTable[self._memory[i]] = self.INST_toImplement  # cycles += 6
             elif self._memory[i] == 0xFA:
                 self.mappingTable[self._memory[i]] = self.INST_JMP
             elif self._memory[i] == 0xFB:
                 self.mappingTable[self._memory[i]] = self.INST_EI
             elif self._memory[i] == 0xFC:
-                self.mappingTable[self._memory[i]] = self.INST_toImplement
+                self.mappingTable[self._memory[i]] = self.INST_toImplement  # cycles += 11 18
             elif self._memory[i] == 0xFD:
                 self.mappingTable[self._memory[i]] = self.INST_NOP
             elif self._memory[i] == 0xFE:
@@ -1385,11 +1603,18 @@ class cpu:
                 self.mappingTable[self._memory[i]] = self.INST_RST
 
     def information(self):
-        print " a:%x" % self.A
-        print "bc:%x b:%x c:%x" % (self.BC, self.B, self.C)
-        print "de:%x" % self.DE
-        print "HL:%x" % self.HL
-        print "SP:%x" % self.SP
+        print " a:%x" % self.A, self.A
+        print "bc:%x B:%x C:%x" % (self.BC, self.B, self.C)
+        print "de:%x D:%x E:%x" % (self.DE, self.D, self.E)
+        print "HL:%x H:%x L:%x" % (self.HL, self.H, self.L)
+        print "SP:%x" % self.SP, self.SP
         print "ZERO:", self.ZERO
+        print "SIGN:", self.SIGN
+        print "Parity:", self.PARITY
+        print "HALFCARRY:", self.HALFCARRY
+        print "INTERRUPT:", self.INTERRUPT
+        print "CARRY:", self.CARRY
+        print "COUNT:", self.count
+        print
         for i in range(10):
             print "%x: %x" % (self.PC+i, self._memory[self.PC+i])

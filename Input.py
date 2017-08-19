@@ -23,8 +23,13 @@ class input:
         result = 0
         if port == 1:
             result = self.IN_PORT1
+            self.IN_PORT1 &= 0xFE
         elif port == 2:
-            result = self.IN_PORT2
+            result = (self.IN_PORT2 & 0x8F) | (self.IN_PORT2 & 0x70)
         elif port == 3:
-            result = (((self.OUT_PORT4HI << 8) | self.OUT_PORT4LO) << self.OUT_PORT2) >> 8
+            result = ((((self.OUT_PORT4HI << 8) | self.OUT_PORT4LO) << self.OUT_PORT2) >> 8) & 0xFF
+
+        if result > 255:
+            print "input error:", result
+            exit(1)
         return result

@@ -1011,7 +1011,7 @@ class cpu:
         self.SIGN = True if self.A & 0x80 > 0 else False
         self.PARITY = True if self.A % 2 == 0 else False
         # self.HALFCARRY = True if (self.A%10) != ((temp&0x0F) & (value&0x0F)) else False
-        self.HALFCARRY = False if ((temp & 8)>>3) | ((value & 8)>>3) > 0 else True
+        # self.HALFCARRY = False if ((temp & 8)>>3) | ((value & 8)>>3) > 0 else True
 
 
     def Xor(self, value):
@@ -1023,13 +1023,13 @@ class cpu:
         self.SIGN = True if self.A & 0x80 > 0 else False
         self.PARITY = True if self.A % 2 == 0 else False
         # self.HALFCARRY = True if (self.A%10) != ((temp&0x0F) ^ (value&0x0F)) else False
-        self.HALFCARRY = False
+        # self.HALFCARRY = False
 
     def Or(self, value):
         """"""
         self.A = self.A | value
         self.CARRY = False
-        self.HALFCARRY = False  # js8080
+        # self.HALFCARRY = False  # js8080
         self.ZERO = True if self.A == 0 else False
         self.SIGN = True if self.A & 0x80 > 0 else False
         self.PARITY = True if self.A % 2 == 0 else False

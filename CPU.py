@@ -30,7 +30,7 @@ class cpu:
 
         self.count = 0
         self.cycles = 0
-        self.prevHL = 0
+        self.prev = 0
 
         self.disassembly_pc = 0
         self.mappingTable = [0] * 0x100
@@ -48,7 +48,8 @@ class cpu:
             else:
                 a, = struct.unpack('c', byte)
                 self._memory.append(ord(a))
-        self._memory += [0] * (16384 - len(self._memory))   # ROM + RAM(work RAM and video RAM) = 16384 0x3fff
+        # self._memory += [0] * (16384 - len(self._memory))   # ROM + RAM(work RAM and video RAM) = 16384 0x3fff
+        self._memory += [0] * (65536 - len(self._memory))   # ROM + RAM(work RAM and video RAM) = 16384 0x3fff
 
     def reset(self):
         self.PC = 0
@@ -72,6 +73,7 @@ class cpu:
         # print "PC: " + "%x"%self.PC
         # print "oprand: " + "%x"%(self.current_inst)
         return self.PC
+
     def flag(self):
         value = 0
         if self.CARRY:
@@ -118,6 +120,7 @@ class cpu:
                     self.callInterrupt(0x10)
                 self.interrupt_alternate = not self.interrupt_alternate
         if self.A>0xFF or self.B>0xFF or self.C>0xFF or self.D>0xFF or self.E>0xFF or self.H>0xFF or self.L>0xFF:
+            print self.count
             self.information()
             print "INST"
 
@@ -131,6 +134,15 @@ class cpu:
             # print "fuck", self.count, self.current_inst
             # exit(1)
         # self.prevHL = self._memory[8310]
+
+        # if self._memory[0x20c0] != self.prev:
+        #     print "memory changed:", self._memory[0x20c0]
+        # self.prev = self._memory[0x20c0]
+        # if self.HL !=self.prev:
+        #     print "fuck", self.HL
+        # self.prev = self.HL
+        if self.HL == 0x4017:
+            print self.count
 
     def callInterrupt(self, address):
         # self.INTERRUPT = False
@@ -791,6 +803,8 @@ class cpu:
     def INST_INP(self):
         port = self.FetchRomNext1Byte()
         self.A = self.io.InPutPort(port)
+        if self.A > 255:
+            print "Input Error"
         self.cycles += 10
 
     def INST_PCHL(self):
@@ -987,8 +1001,11 @@ class cpu:
 
     def And(self, value):
         """"""
+        if value > 0x0FF:
+            print "And in value error"
+            exit(1)
         temp = self.A
-        self.A = self.A & value
+        self.A = (self.A & value) & 0xFF
         self.CARRY = False
         self.ZERO = True if self.A == 0 else False
         self.SIGN = True if self.A & 0x80 > 0 else False
@@ -1064,15 +1081,27 @@ class cpu:
         return address
 
     def readByte(self, address):
+        if self._memory[address] > 0xFF:
+            print "readByte Error"
+            exit(1)
         return self._memory[address]
 
     def read2Bytes(self, address):
         return (self._memory[address + 1] << 8) + self._memory[address]
 
     def writeByte(self, address, data):
+        if data > 0xFF:
+            print "writeByte Error:"
+            exit(1)
+        # if address > 16384:
+            # print "address error:"
+            # exit(1)
         self._memory[address] = data & 0xFF
 
     def write2Bytes(self, address, data):
+        if data > 0xFFFF:
+            print "write2Bytes Error:"
+            exit(1)
         self._memory[address + 1] = data >> 8
         self._memory[address] = data & 0xFF
 

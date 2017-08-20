@@ -24,7 +24,7 @@ cpu.loadROM(ROMPath)
 cpu.InitMap()
 
 # beginCycles = 80000
-beginCycles = 8111000
+beginCycles = 8111800
 
 textRun.clear()
 textRun.send_keys(str(beginCycles))

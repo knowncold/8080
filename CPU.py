@@ -124,7 +124,7 @@ class cpu:
             self.information()
             print "INST"
 
-            exit(1)
+            # exit(1)
 
         # if self.HL == 65286:
         #     print "HL changed", self.count, self.current_inst
@@ -1092,7 +1092,7 @@ class cpu:
     def writeByte(self, address, data):
         if data > 0xFF:
             print "writeByte Error:"
-            exit(1)
+            # exit(1)
         # if address > 16384:
             # print "address error:"
             # exit(1)

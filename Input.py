@@ -8,7 +8,7 @@ class input:
         self.IN_PORT1 = 0
         self.IN_PORT2 = 0
 
-    def OutPutPort(self, port, value):  # TODO IO
+    def OutPutPort(self, port, value):
         if port == 2:
             self.OUT_PORT2 = value
         elif port == 3:
@@ -19,7 +19,7 @@ class input:
         elif port == 5:
             self.OUT_PORT5 = value
 
-    def InPutPort(self, port):  # TODO IO
+    def InPutPort(self, port):
         result = 0
         if port == 1:
             result = self.IN_PORT1

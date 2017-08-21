@@ -35,21 +35,10 @@ def refresh(processor, pxArray):
                     pxArray[i][255-j*8-k] = (0,0,0)
                 vRAM >>= 1
 
-# pxarray.replace(black, (255,255,255), distance=0)
 pygame.display.update()
 fps = 60
 fps_clock = pygame.time.Clock()
 
-# cpu.runCycles(8111000)
-
-# print cpu._memory[9217]
-# cpu.runCycles(42434)
-# cpu.runCycles(2597707)
-# 27300
-# a = cpu._memory[0x2400:0x3fff]
-cpu.information()
-# print cpu._memory[0x2400:0x3fff]
-pygame.display.update()
 while 1:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -79,8 +68,6 @@ while 1:
 
     cpu.Run()
     refresh(cpu, pxarray)
-    # print "%x" % cpu.PC
     fps_clock.tick(fps)
     pygame.display.update()
-    # print "count:", cpu.count
 

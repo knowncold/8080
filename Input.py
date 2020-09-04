@@ -1,4 +1,4 @@
-class input:
+class Input:
     def __init__(self):
         self.OUT_PORT2 = 0
         self.OUT_PORT3 = 0
@@ -30,6 +30,6 @@ class input:
             result = ((((self.OUT_PORT4HI << 8) | self.OUT_PORT4LO) << self.OUT_PORT2) >> 8) & 0xFF
 
         if result > 255:
-            print "input error:", result
+            print("input error:", result)
             exit(1)
         return result

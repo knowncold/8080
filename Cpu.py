@@ -2,7 +2,7 @@ import struct
 import Input
 
 
-class cpu:
+class Cpu:
     def __init__(self):
         self._memory = []
         self.PC = 0
@@ -28,20 +28,24 @@ class cpu:
         self.interrupt_alternate = False
         self.count = 0
         self.cycles = 0
-        self.mappingTable = [0] * 0x100
+        self.mappingTable = []
 
-        self.io = Input.input()
+        self.io = Input.Input()
 
     def loadROM(self, path):
         f = open(path, 'rb')
         while True:
             byte = f.read(1)
-            if byte == '':
+            if byte == b'':
                 break
             else:
                 a, = struct.unpack('c', byte)
                 self._memory.append(ord(a))
-        self._memory += [0] * (65536 - len(self._memory))   # ROM + RAM(work RAM and video RAM) = 16384 0x3fff
+        self.mappingTable = [0] * 0x100
+        self._memory += [0] * (65536 - len(self._memory))  # ROM + RAM(work RAM and video RAM) = 16384 0x3fff
+
+    def get_memory(self):
+        return self._memory
 
     def reset(self):
         self.PC = 0
@@ -58,13 +62,14 @@ class cpu:
     def Run(self):  # Run
         for i in range(16667):
             self.execINST()
+            self.information()
 
-    def runCycles(self, cycles):    # run instruction in certain cycles (used in debuging)
+    def runCycles(self, cycles):  # run instruction in certain cycles (used in debug)
         for i in range(cycles):
             self.execINST()
         return self.PC
 
-    def flag(self): # used for debug
+    def flag(self):  # used for debug
         value = 0
         if self.CARRY:
             value += 0x01
@@ -82,16 +87,16 @@ class cpu:
 
     def execINST(self):
         self.current_inst = self.FetchRomNext1Byte()
-        if not self.mappingTable[self.current_inst] == None:
+        if self.mappingTable[self.current_inst] is not None:
             self.mappingTable[self.current_inst]()
         else:
-            print "opCODE ERROR: " + str(self.current_inst)
+            print("opCODE ERROR: " + str(self.current_inst))
         self.count += 1
 
-        if self.cycles >= 16667:    # Check Interrupt
+        if self.cycles >= 16667:  # Check Interrupt
             self.cycles -= 16667
             if self.INTERRUPT:
-                if self.interrupt_alternate == True:
+                if self.interrupt_alternate:
                     self.callInterrupt(0x08)
                 else:
                     self.callInterrupt(0x10)
@@ -106,7 +111,7 @@ class cpu:
         self.cycles += 4
 
     def INST_toImplement(self):
-        print str(self.current_inst) + " is not implement."
+        print(str(self.current_inst) + " is not implement.")
         exit(1)
 
     def INST_JMP(self):  # JMP group     size 3
@@ -237,7 +242,7 @@ class cpu:
             self.cycles += 6
         else:
             source = 0
-            print "LDA problem"
+            print("LDA problem")
             exit(1)
 
         self.A = self.readByte(source)
@@ -259,7 +264,7 @@ class cpu:
             value += 0x01 if self.CARRY else 0
         else:
             value = 0
-            print "Instruction Push Error: " + str(self.current_inst)
+            print("Instruction Push Error: " + str(self.current_inst))
             exit(1)
 
         self.stackPush(value)
@@ -432,7 +437,7 @@ class cpu:
             self.setL(self.readByte(self.HL))
             self.cycles += 2
         else:
-            print "NO matching rules for MOV INST"
+            print("NO matching rules for MOV INST")
             exit(1)
 
         self.cycles += 5
@@ -444,7 +449,7 @@ class cpu:
         elif self.current_inst == 0x13:
             self.setDE(self.DE + 1)
         elif self.current_inst == 0x23:
-            self.setHL(self.HL+1)
+            self.setHL(self.HL + 1)
         elif self.current_inst == 0x33:
             self.SP = (self.SP + 1) & 0xFF
 
@@ -481,7 +486,7 @@ class cpu:
         elif self.current_inst == 0x3B:
             self.SP = (self.SP - 1) & 0xFF
         else:
-            print "DCX ERROR"
+            print("DCX ERROR")
             exit(1)
         self.cycles += 6
 
@@ -504,7 +509,7 @@ class cpu:
             self.writeByte(self.HL, self.Dec(self.readByte(self.HL)))
             self.cycles += 5
         else:
-            print "DEC ERROR"
+            print("DEC ERROR")
             exit(1)
         self.cycles += 5
 
@@ -702,7 +707,7 @@ class cpu:
             self.cycles += 3
         else:
             value = 0
-            print "CMP ERROR"
+            print("CMP ERROR")
             exit(1)
         self.CmpSub(value)
 
@@ -717,8 +722,8 @@ class cpu:
 
     def INST_XTHL(self):
         temp = self.H
-        self.setH(self.readByte(self.SP+1))
-        self.writeByte(self.SP+1, temp)
+        self.setH(self.readByte(self.SP + 1))
+        self.writeByte(self.SP + 1, temp)
 
         temp = self.L
         self.setL(self.readByte(self.SP))
@@ -735,7 +740,7 @@ class cpu:
         port = self.FetchRomNext1Byte()
         self.A = self.io.InPutPort(port)
         if self.A > 255:
-            print "Input Error"
+            print("Input Error")
             exit(1)
         self.cycles += 10
 
@@ -804,7 +809,7 @@ class cpu:
             self.writeByte(self.FetchRomNext2Bytes(), self.A)
             self.cycles += 6
         else:
-            print "no matching rules for STA INST"
+            print("no matching rules for STA INST")
             exit(1)
         self.cycles += 7
 
@@ -856,7 +861,7 @@ class cpu:
 
     @staticmethod
     def INST_HLT():
-        print "HLT"
+        print("HLT")
         exit(0)
 
     def setB(self, data):
@@ -925,7 +930,7 @@ class cpu:
     def And(self, value):
         """"""
         if value > 0x0FF:
-            print "And in value error"
+            print("And in value error")
             exit(1)
         self.A = (self.A & value) & 0xFF
         self.CARRY = False
@@ -933,7 +938,6 @@ class cpu:
         self.SIGN = True if self.A & 0x80 > 0 else False
         self.PARITY = True if self.A % 2 == 0 else False
         # self.HALFCARRY = False if ((temp & 8)>>3) | ((value & 8)>>3) > 0 else True
-
 
     def Xor(self, value):
         """"""
@@ -970,24 +974,24 @@ class cpu:
         x = value & 0xFF
         # self.HALFCARRY = True if (self.A & 0x0F) + (in_value & 0x0F) + carry > 0x0F else False
         self.HALFCARRY = True if ((self.A ^ value) ^ in_value) & 0x10 > 0 else False
-        self.CARRY = True if value > 255 or value < 0 else  False
+        self.CARRY = True if value > 255 or value < 0 else False
         self.A = value & 0xFF
         self.SIGN = True if x & 0x80 > 0 else False
         self.ZERO = True if x == 0 else False
-        self.PARITY = True if x % 2== 0 else False
+        self.PARITY = True if x % 2 == 0 else False
 
     def CmpSub(self, in_value):
         value = self.A - in_value
         self.CARRY = True if value >= 255 or value < 0 else False
         self.HALFCARRY = True if ((self.A ^ value) ^ in_value) & 0x10 > 0 else False
-        self.ZERO = True if value & 0xFF== 0 else False
+        self.ZERO = True if value & 0xFF == 0 else False
         self.SIGN = True if (value & 0x80) > 0 else False
-        self.PARITY = True if value%2==0 else False
+        self.PARITY = True if value % 2 == 0 else False
 
     def stackPush(self, data):
         if data > 0xFFFF:
-            print "PUSH ERROR DATA:", data
-            print "Count:", self.count
+            print("PUSH ERROR DATA:", data)
+            print("Count:", self.count)
             exit(1)
         self.SP -= 2
         self.write2Bytes(self.SP, data)
@@ -999,7 +1003,7 @@ class cpu:
 
     def readByte(self, address):
         if self._memory[address] > 0xFF:
-            print "readByte Error"
+            print("readByte Error")
             exit(1)
         return self._memory[address]
 
@@ -1540,18 +1544,20 @@ class cpu:
                 self.mappingTable[self._memory[i]] = self.INST_RST
 
     def information(self):
-        print " a:%x" % self.A, self.A
-        print "bc:%x B:%x C:%x" % (self.BC, self.B, self.C)
-        print "de:%x D:%x E:%x" % (self.DE, self.D, self.E)
-        print "HL:%x H:%x L:%x" % (self.HL, self.H, self.L)
-        print "SP:%x" % self.SP, self.SP
-        print "ZERO:", self.ZERO
-        print "SIGN:", self.SIGN
-        print "Parity:", self.PARITY
-        print "HALFCARRY:", self.HALFCARRY
-        print "INTERRUPT:", self.INTERRUPT
-        print "CARRY:", self.CARRY
-        print "COUNT:", self.count
-        print
-        for i in range(10):
-            print "%x: %x" % (self.PC+i, self._memory[self.PC+i])
+        # print " a:%x" % self.A, self.A
+        # print "bc:%x B:%x C:%x" % (self.BC, self.B, self.C)
+        # print "de:%x D:%x E:%x" % (self.DE, self.D, self.E)
+        # print "HL:%x H:%x L:%x" % (self.HL, self.H, self.L)
+        # print "SP:%x" % self.SP, self.SP
+        # print "ZERO:", self.ZERO
+        # print "SIGN:", self.SIGN
+        # print "Parity:", self.PARITY
+        # print "HALFCARRY:", self.HALFCARRY
+        # print "INTERRUPT:", self.INTERRUPT
+        # print "CARRY:", self.CARRY
+        # print "COUNT:", self.count
+        # print
+        # for i in range(10):
+        #     print "%x: %x" % (self.PC + i, self._memory[self.PC + i])
+        # print(self._memory)
+        pass

@@ -1,4 +1,4 @@
-class input:
+class Input:
     def __init__(self):
         self.OUT_PORT2 = 0
         self.OUT_PORT3 = 0

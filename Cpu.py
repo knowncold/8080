@@ -2,7 +2,7 @@ import struct
 import Input
 
 
-class cpu:
+class Cpu:
     def __init__(self):
         self._memory = []
         self.PC = 0
@@ -28,9 +28,9 @@ class cpu:
         self.interrupt_alternate = False
         self.count = 0
         self.cycles = 0
-        self.mappingTable = [0] * 0x100
+        self.mappingTable = []
 
-        self.io = Input.input()
+        self.io = Input.Input()
 
     def loadROM(self, path):
         f = open(path, 'rb')
@@ -41,7 +41,11 @@ class cpu:
             else:
                 a, = struct.unpack('c', byte)
                 self._memory.append(ord(a))
+        self.mappingTable = [0] * 0x100
         self._memory += [0] * (65536 - len(self._memory))  # ROM + RAM(work RAM and video RAM) = 16384 0x3fff
+
+    def get_memory(self):
+        return self._memory
 
     def reset(self):
         self.PC = 0
@@ -60,7 +64,7 @@ class cpu:
             self.execINST()
             self.information()
 
-    def runCycles(self, cycles):  # run instruction in certain cycles (used in debuging)
+    def runCycles(self, cycles):  # run instruction in certain cycles (used in debug)
         for i in range(cycles):
             self.execINST()
         return self.PC
@@ -83,7 +87,7 @@ class cpu:
 
     def execINST(self):
         self.current_inst = self.FetchRomNext1Byte()
-        if not self.mappingTable[self.current_inst] == None:
+        if self.mappingTable[self.current_inst] is not None:
             self.mappingTable[self.current_inst]()
         else:
             print("opCODE ERROR: " + str(self.current_inst))
